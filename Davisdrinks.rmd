@@ -1,78 +1,163 @@
 ---
 title: "Booze and choice of seat"
-author: "Put your name here!"
-date: "put the date here"
+author: "Jacob St John"
+date: "November 21, 2026"
 output:
   html_document:
     df_print: paged
 ---
 
-```{r include=FALSE,echo=FALSE}
-require(tidyverse)
-require(tigerstats)
-data(ucdavis1)
-davisgals <- filter(ucdavis1,Sex=="Female")
-write.csv(davisgals,file="davisgals")
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r load}
+# tigerstats::ucdavis1 is the same survey, but that package is not
+# available for this version of R. The file is the UC Davis data from
+# Mind on Statistics (Utts and Heckard): 173 students in two statistics
+# classes, spring 2000.
+raw <- read.csv("ucdavis1.csv", stringsAsFactors = FALSE)
+raw$Seat <- factor(raw$Seat, levels = c("Front", "Middle", "Back"))
+
+# Drop students who did not report a seat or a weekly drink count.
+davis <- raw[!is.na(raw$alcohol) & raw$Seat %in% c("Front", "Middle", "Back"), ]
+davis$Seat <- factor(davis$Seat, levels = c("Front", "Middle", "Back"))
+davisgals <- davis[davis$Sex == "Female", ]
+
+seat_summary <- function(df) {
+  df %>%
+    group_by(Seat) %>%
+    summarise(
+      n = n(),
+      mean = mean(alcohol),
+      sd = sd(alcohol),
+      median = median(alcohol),
+      Q1 = quantile(alcohol, 0.25),
+      Q3 = quantile(alcohol, 0.75),
+      .groups = "drop"
+    )
+}
 ```
 
 # Introduction
 
-<!--In this section you explain what you are trying to show.  Where did the data come from?  What is the research or other question you are trying to answer?!-->
-Is there any difference in alcohol consumption between the students who sit in the front, middle, and back rows at UC Davis.  
-  
-Same question restricted to just female students. 
-  
+Students in two statistics classes at UC Davis were surveyed in spring 2000. One class was for students outside the liberal arts (148 students) and one was for liberal-arts students (25 students). Each student reported where they prefer to sit when they have a choice, Front, Middle, or Back, and how many alcoholic drinks they consume in a week. The data are the `UCDavis1` set from *Mind on Statistics* by Utts and Heckard. Eight of the 173 students left seat or alcohol blank, so the comparisons below use the 165 students who answered both questions.
+
+The question is whether the row a student selects is related to weekly alcohol consumption. The same comparison is then repeated for the women only, because men and women may drink different amounts and may also choose different rows.
 
 # Methods
 
-<!--Decide on your methods:  use "variable analysis" or other appropriate descriptors.  Make sure to choose at least one graphical method and at least one numerical method.!-->
+Seat is a category with three levels. Alcohol is a number: drinks per week. The comparison is one quantitative variable across three groups.
 
-#Results
+The picture is a boxplot of drinks for each row, for everyone and again for women. The numbers reported with each picture are the group size, mean, standard deviation, median, and the first and third quartiles.
 
-<!--Divide this section into two sub-sections:  One for your descriptive  results and one for your inferential results.!-->
+The inferential test is a one-way ANOVA, which asks whether the three row means are the same. Tukey's honest significant difference then compares the rows two at a time. ANOVA assumes independent observations, roughly normal residuals, and similar spread in the three rows. Drinking totals are piled up at zero and a few students reported very large amounts, so those assumptions are checked, and a Kruskal-Wallis test is reported beside the ANOVA. Kruskal-Wallis compares the distributions by rank and does not need normal residuals or equal spreads.
+
+# Results
 
 ## Descriptive Results
 
 ### Graphical Descriptive Results
 
-<!--Graphical results here.  Make sure to show your code.  Provide appropriate labels for axes, giving units if possible, and provide a good title for the graph, too.  Use the graphical results to describe the patterns if any that exist in the data as focused toward the research question!-->
-```{r}
-boxplot(alcohol~Seat,data=ucdavis1,main="guys & gals")
+```{r box-all, fig.cap="Weekly drinks by preferred row, all students who answered both questions."}
+ggplot(davis, aes(x = Seat, y = alcohol)) +
+  geom_boxplot(fill = "#9ecae1", width = 0.6) +
+  labs(
+    title = "Weekly alcohol consumption by seat",
+    x = "Preferred row",
+    y = "Alcoholic drinks per week"
+  )
 ```
-  
-```{r}
-boxplot(alcohol~Seat,data=davisgals,main="Just gals")
-```  
+
+The front-row box sits on zero. Its median is zero, and the box only reaches about 2 drinks. The middle row is a little higher, with a median of 1. The back row is the one that stands out: the median is 3.5, the box extends past 10 drinks, and several students reported 20 to 55 drinks in a week. A few high values in the middle row reach 35, but the typical middle-row student is much closer to the front row than to the back.
+
+```{r box-women, fig.cap="Weekly drinks by preferred row, women only."}
+ggplot(davisgals, aes(x = Seat, y = alcohol)) +
+  geom_boxplot(fill = "#fc9272", width = 0.6) +
+  labs(
+    title = "Weekly alcohol consumption by seat, women",
+    x = "Preferred row",
+    y = "Alcoholic drinks per week"
+  )
+```
+
+Among women the amounts are smaller, and the same order appears. Front and middle are both low. The back-row box is higher and more spread out, with a top value of 17.5 drinks. Only 14 women reported sitting in the back, so that box is based on a small group.
 
 ### Numerical Descriptive Results
 
-<!--Numerical results go here. Use the numerical results to describe the patterns if any that exist in the data as focused toward the research question!-->
-  
-```{r}
-summary(alcohol~Seat,data=ucdavis1)
+```{r numbers-all}
+seat_summary(davis)
 ```
-   
-```{r}
-summary(alcohol~Seat,data=davisgals)
+
+Front-row students average 1.79 drinks per week (SD 3.81), middle-row students average 3.33 (SD 6.23), and back-row students average 8.56 (SD 12.58). The means rise from front to back, and so do the medians: 0, 1, and 3.5. The standard deviation rises with the mean. The back row is not just a higher center. It is a much wider spread, driven by a few heavy drinkers.
+
+Most front-row students reported no drinks at all: 25 of 40, which is 62.5%. In the middle row, 42 of 89 reported zero (47%). In the back row, 12 of 36 reported zero (33%).
+
+```{r numbers-women}
+seat_summary(davisgals)
 ```
-    
+
+The 91 women follow the same pattern at a lower level. Means are 1.08 in front (n = 25), 1.61 in the middle (n = 52), and 4.86 in the back (n = 14). Medians are 0, 1, and 2.25. The back-row standard deviation, 6.13, is about three times the front and middle standard deviations.
+
 ## Inferential Results
 
-<!--State hypothesis clearly.  Make sure your discussion of the inferential test covers all the aspects that the test output produces, such as test statistic, p-value etc.  Make a decision about the null hypothesis, explain the assumptions on which the selected test/procedure was based, and why the chosen procedure satisfys the assumptions and is appropriate to answer the research question!-->
-  
-```{r}
-model <- aov(alcohol~Seat,data=ucdavis1)
+For all 165 students the hypotheses are
+
+- H0: the mean number of drinks per week is the same in the front, middle, and back rows.
+- Ha: at least one of those three means is different.
+
+```{r anova-all}
+model <- aov(alcohol ~ Seat, data = davis)
 summary(model)
-plot(TukeyHSD(model))
+TukeyHSD(model)
 ```
-    
-```{r}
-model.1 <- aov(alcohol~Seat,data=davisgals)
-summary(model.1)
-plot(TukeyHSD(model.1))
+
+```{r tukey-all, fig.cap="Tukey confidence intervals for the difference in mean drinks between rows."}
+plot(TukeyHSD(model), las = 1)
 ```
-  
+
+The ANOVA F statistic is 8.35 on 2 and 162 degrees of freedom. If the three means were really equal, an F this large would be unusual: the p-value is 0.00035. That is small enough to reject H0. Preferred row and weekly drinking are related in this sample.
+
+Tukey locates the difference. Middle minus front is 1.54 drinks, and the adjusted p-value is 0.54, so front and middle are not distinguishable. Back minus front is 6.77 drinks (adjusted p = 0.00051). Back minus middle is 5.22 drinks (adjusted p = 0.0020). The back row is the group that differs. The intervals for those two comparisons sit entirely above zero.
+
+The ANOVA assumptions are not in good shape. The observations are separate students, which is the independence we can check from the design, but the students are two statistics classes rather than a random sample of the university. The residuals are right skewed: a Shapiro-Wilk test of the residuals gives W = 0.68 and a p-value far below 0.001, and 79 of the 165 students reported zero drinks. The spreads are also unequal. A Bartlett test gives K-squared = 55.9 on 2 degrees of freedom, p = 7 × 10^-13. The back-row variance is about ten times the front-row variance. ANOVA is the standard comparison of means, and with these sample sizes it is not fragile to moderate non-normality, but the unequal spread is large enough that the p-value should not be the only evidence.
+
+```{r kruskal-all}
+kruskal.test(alcohol ~ Seat, data = davis)
+```
+
+The Kruskal-Wallis test does not need normal groups or equal variances. It gives chi-squared = 11.73 on 2 degrees of freedom, p = 0.0028. The rank test agrees with the ANOVA: the drinking distributions differ by row.
+
+The women's hypotheses are the same statement restricted to female students: equal mean drinks in the three rows, against at least one mean different.
+
+```{r anova-women}
+model_gals <- aov(alcohol ~ Seat, data = davisgals)
+summary(model_gals)
+TukeyHSD(model_gals)
+```
+
+```{r tukey-women, fig.cap="Tukey intervals for women. Back versus front, and back versus middle, exclude zero."}
+plot(TukeyHSD(model_gals), las = 1)
+```
+
+For women, F = 7.56 on 2 and 88 degrees of freedom, p = 0.00094. Reject the equal-means hypothesis. Tukey again says the back row is the different one: back minus front is 3.78 drinks (adjusted p = 0.0012), and back minus middle is 3.25 drinks (adjusted p = 0.0021). Middle minus front is 0.53 drinks (adjusted p = 0.76).
+
+The same assumption problems show up for the women. Residuals are skewed (Shapiro-Wilk W = 0.82, p = 3.9 × 10^-9), and Bartlett's test rejects equal variances (K-squared = 35.3, df = 2, p = 2.1 × 10^-8). The back group has only 14 women.
+
+```{r kruskal-women}
+kruskal.test(alcohol ~ Seat, data = davisgals)
+```
+
+Kruskal-Wallis for the women gives chi-squared = 5.99 on 2 degrees of freedom, p = 0.050. That is right at the usual 0.05 line. The mean comparison is clearer than the rank comparison, because a few higher values in the back row pull the mean up. With 14 women in the back, that result is real in this sample but not a precise estimate of how large the gap is.
 
 # Discussion and Conclusion
 
-<!--Discussion and conclusion here.  If you found a relationship be sure to consider whether the relationship occurs because one of the variavbles causes the other, or whether they perhasps are related for some other reason.  Watch the chapter 6 videos from the GeorgeTown videos collection.!-->
+Students who prefer the back row report more weekly drinking than students who prefer the front or the middle. In the whole sample the back-row mean is about 8.6 drinks, against 1.8 in front and 3.3 in the middle. Front and middle are not meaningfully different. The same ordering holds for women, at a lower level: about 4.9 drinks in back against about 1.1 and 1.6 in front and middle.
+
+That is an association. Choosing a row does not, by itself, show that the row causes the drinking, or that the drinking causes the seat. Students pick their own seats. People who go out more may like the back of the room, and those same people may drink more. The class, the friends they sit with, age, and sex can all sit behind both variables.
+
+Sex is a concrete example. Men in this survey average 6.72 drinks per week and women average 1.96. The back row is also more male: 22 of 36 back-row students are men (61%), compared with 15 of 40 in front (38%). Part of the overall gap is the mix of men and women. It is not the whole gap. Among women, who are compared with other women, the back row is still higher. Among men the means go the same direction, 2.97, 5.76, and 10.91, but the male comparison is not significant (ANOVA p = 0.067). The male back row has a standard deviation of 15 drinks, so a few very high reports dominate that mean.
+
+The survey is self-reported drinking from two statistics classes in one quarter. Students who skip the question, or who understate what they drink, are invisible here. The conclusion that fits the data is narrower than a claim about every college student: in these classes, preferred row and weekly drinking are related, and the relationship is that the back row drinks more than the front and the middle.
